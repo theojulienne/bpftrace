@@ -563,7 +563,7 @@ void CodegenLLVM::visit(Call &call)
       auto &arg = *call.vargs->at(0);
       fixed_buffer_length = arg.type.GetNumElements() *
                             arg.type.GetElementTy()->GetSize();
-      length = b_.getInt8(fixed_buffer_length);
+      length = b_.getInt16(fixed_buffer_length);
     }
 
     auto elements = AsyncEvent::Buf().asLLVMType(b_, fixed_buffer_length);
