@@ -189,6 +189,7 @@ TEST(semantic_analyser, builtin_functions)
   test("kprobe:f { @x = max(pid) }", 0);
   test("kprobe:f { @x = avg(pid) }", 0);
   test("kprobe:f { @x = stats(pid) }", 0);
+  test("kprobe:f { @x = event(pid) }", 0);
   test("kprobe:f { @x = 1; delete(@x) }", 0);
   test("kprobe:f { @x = 1; print(@x) }", 0);
   test("kprobe:f { @x = 1; clear(@x) }", 0);
@@ -443,6 +444,21 @@ TEST(semantic_analyser, call_stats)
   test("kprobe:f { if(stats(1)) { 123 } }", 1);
   test("kprobe:f { stats(1) ? 0 : 1; }", 1);
 }
+
+TEST(semantic_analyser, call_event)
+{
+  test("kprobe:f { @x = event(123); }", 0);
+  test("kprobe:f { @x = event(123, 456); }", 0);
+  test("kprobe:f { @x = event(123, 456, \"foo\"); }", 0);
+  test("kprobe:f { @x[123] = event(123); }", 1);
+  test("kprobe:f { @x = event(); }", 1);
+  test("kprobe:f { event(123); }", 1);
+  test("kprobe:f { $x = event(123); }", 1);
+  test("kprobe:f { @[event(123)] = 1; }", 1);
+  test("kprobe:f { if(event(1)) { 123 } }", 1);
+  test("kprobe:f { event(1) ? 0 : 1; }", 1);
+}
+
 
 TEST(semantic_analyser, call_delete)
 {

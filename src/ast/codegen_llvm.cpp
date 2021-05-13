@@ -483,6 +483,10 @@ void CodegenLLVM::visit(Call &call)
     b_.CreateLifetimeEnd(newval);
     expr_ = nullptr;
   }
+  else if (call.func == "event")
+  {
+    createEventOutputCall(call);
+  }
   else if (call.func == "delete")
   {
     auto &arg = *call.vargs->at(0);
@@ -2783,6 +2787,60 @@ void CodegenLLVM::createPrintMapCall(Call &call)
   }
 
   b_.CreatePerfEventOutput(ctx_, buf, getStructSize(print_struct));
+  b_.CreateLifetimeEnd(buf);
+  expr_ = nullptr;
+}
+
+// FIXME: move
+void CodegenLLVM::createEventOutputCall(Call &call)
+{
+  Map &map = *call.map;
+
+  size_t event_buf_size = 0;
+  for (Expression *expr : *call.vargs)
+  {
+    event_buf_size += expr->type.GetSize();
+  }
+
+  // FIXME: support for sizes that don't fit on stack
+  // FIXME: also support dynamic sizes (buffers/slices)
+  // FIXME: and also, on newer kernels, support ringbuf
+  auto buf_type = llvm::ArrayType::get(b_.getInt8Ty(), event_buf_size);
+  AllocaInst *buf = b_.CreateAllocaBPF(buf_type, map.ident + "_val");
+
+  // FIXME: fill in stuff in the buffer
+  int offset = 0;
+  // Construct a map key in the stack
+  for (Expression *expr : *call.vargs) // FIXME: this is identical to getMapKey, can we refactor to share it?
+  {
+    auto scoped_del = accept(expr);
+    Value *offset_val = b_.CreateGEP(
+        buf, { b_.getInt64(0), b_.getInt64(offset) });
+
+    if (onStack(expr->type))
+      b_.CREATE_MEMCPY(offset_val, expr_, expr->type.GetSize(), 1);
+    else if (expr->type.IsArrayTy() || expr->type.IsRecordTy())
+    {
+      // Read the array/struct into the key
+      b_.CreateProbeRead(ctx_,
+                          offset_val,
+                          expr->type.GetSize(),
+                          expr_,
+                          expr->type.GetAS(),
+                          expr->loc);
+    }
+    else
+    {
+      // promote map key to 64-bit:
+      b_.CreateStore(
+          b_.CreateIntCast(expr_, b_.getInt64Ty(), expr->type.IsSigned()),
+          b_.CreatePointerCast(offset_val,
+                                expr_->getType()->getPointerTo()));
+    }
+    offset += expr->type.GetSize();
+  }
+
+  b_.CreatePerfEventOutput(ctx_, map, buf, event_buf_size);
   b_.CreateLifetimeEnd(buf);
   expr_ = nullptr;
 }

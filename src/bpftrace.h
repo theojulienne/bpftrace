@@ -226,6 +226,7 @@ private:
       int pid,
       bool file_activation);
   int setup_perf_events();
+  int setup_perf_events_for_map(int epollfd, int mapfd, perf_reader_raw_cb raw_cb, perf_reader_lost_cb lost_cb, void *userdata);
   void poll_perf_events(int epollfd, bool drain = false);
   int print_map_hist(IMap &map, uint32_t top, uint32_t div);
   int print_map_stats(IMap &map, uint32_t top, uint32_t div);

@@ -222,6 +222,14 @@ TEST(Parser, map_assign)
       "   map: @x\n"
       "   call: stats\n"
       "    builtin: arg2\n");
+  test("kprobe:do_sys_open { @x = event(str(arg1)); }",
+      "Program\n"
+      " kprobe:do_sys_open\n"
+      "  =\n"
+      "   map: @x\n"
+      "   call: event\n"
+      "    call: str\n"
+      "     builtin: arg1\n");
   test("kprobe:sys_open { @x = \"mystring\" }",
       "Program\n"
       " kprobe:sys_open\n"

@@ -154,6 +154,9 @@ public:
   CallInst   *createCall(Value *callee, ArrayRef<Value *> args, const Twine &Name);
   void        CreateGetCurrentComm(Value *ctx, AllocaInst *buf, size_t size, const location& loc);
   void        CreatePerfEventOutput(Value *ctx, Value *data, size_t size);
+  void        CreatePerfEventOutput(Value *ctx, IMap *map, Value *data, size_t size);
+  void        CreatePerfEventOutput(Value *ctx, Map &map, Value *data, size_t size);
+  void        CreatePerfEventOutput(Value *ctx, Value *map_ptr, Value *data, size_t size);
   void        CreateSignal(Value *ctx, Value *sig, const location &loc);
   void        CreateOverrideReturn(Value *ctx, Value *rc);
   void        CreateHelperError(Value *ctx, Value *return_value, libbpf::bpf_func_id func_id, const location& loc);

@@ -106,6 +106,7 @@ discussion to other files in /docs, the /tools/\*\_examples.txt files, or blog p
     - [8. `hist()`: Log2 Histogram](#8-hist-log2-histogram)
     - [9. `lhist()`: Linear Histogram](#9-lhist-linear-histogram)
     - [10. `print()`: Print Map](#10-print-print-map)
+    - [11. `event()`: Emit events](#11-event-event)
 - [Output](#output)
     - [1. `printf()`: Per-Event Output](#1-printf-per-event-output)
     - [2. `interval`: Interval Output](#2-interval-interval-output)
@@ -3373,6 +3374,14 @@ it should.
 
 Note that printing maps is different than printing values. See the explanation
 in [`print()`: Print Value](#23-print-print-value).
+
+## 11. `event()`: Emit events
+
+Syntax: `@event_stream_name[optional_keys] = event(value, ...)`
+
+This is implemented using a BPF map.
+
+FIXME: description and example
 
 # Output
 

@@ -1182,6 +1182,30 @@ int BPFtrace::run(std::unique_ptr<BpfOrc> bpforc)
   return 0;
 }
 
+struct perf_bpftrace_map_userdata {
+  BPFtrace *bpftrace;
+  IMap *map;
+};
+
+void perf_event_user_map_printer(void *cb_cookie, void *data, int size)
+{
+  // The perf event data is not aligned, so we use memcpy to copy the data and
+  // avoid UBSAN errors. Using an std::vector guarantees that it will be aligned
+  // to the largest type. See:
+  // https://stackoverflow.com/questions/8456236/how-is-a-vectors-data-aligned.
+  std::vector<uint8_t> data_aligned;
+  data_aligned.resize(size);
+  memcpy(data_aligned.data(), data, size);
+
+  struct perf_bpftrace_map_userdata *userdata = (struct perf_bpftrace_map_userdata *)cb_cookie;
+  BPFtrace &bpftrace = *userdata->bpftrace;
+  auto map = userdata->map;
+  // auto bpftrace = static_cast<BPFtrace*>(cb_cookie);
+  // auto arg_data = data_aligned.data();
+
+  bpftrace.out_->message(MessageType::event, map->name_, bpftrace, map->type_, data_aligned);
+}
+
 int BPFtrace::setup_perf_events()
 {
   int epollfd = epoll_create1(EPOLL_CLOEXEC);
@@ -1191,12 +1215,43 @@ int BPFtrace::setup_perf_events()
     return -1;
   }
 
+  int ret = setup_perf_events_for_map(epollfd,
+                                      maps[MapManager::Type::PerfEvent].value()->mapfd_,
+                                      &perf_event_printer, &perf_event_lost, this);
+  if (ret < 0) {
+    return ret;
+  }
+
+  for (auto &mapmap : maps)
+  {
+    IMap &map = *mapmap.get();
+    if (map.type_.IsEventTy()) {
+      // FIXME: C++ way of doing this
+      struct perf_bpftrace_map_userdata *userdata = (struct perf_bpftrace_map_userdata *)malloc(sizeof(struct perf_bpftrace_map_userdata));
+      userdata->bpftrace = this;
+      userdata->map = &map;
+      open_perf_buffers_.emplace_back(userdata, free);
+      int ret = setup_perf_events_for_map(epollfd, map.mapfd_,
+                                      &perf_event_user_map_printer,
+                                      &perf_event_lost,
+                                      userdata);
+      if (ret < 0) {
+        return ret;
+      }
+    }
+  }
+
+  return epollfd;
+}
+
+int BPFtrace::setup_perf_events_for_map(int epollfd, int mapfd, perf_reader_raw_cb raw_cb, perf_reader_lost_cb lost_cb, void *userdata)
+{
   std::vector<int> cpus = get_online_cpus();
   online_cpus_ = cpus.size();
   for (int cpu : cpus)
   {
     void *reader = bpf_open_perf_buffer(
-        &perf_event_printer, &perf_event_lost, this, -1, cpu, perf_rb_pages_);
+        raw_cb, lost_cb, userdata, -1, cpu, perf_rb_pages_);
     if (reader == nullptr)
     {
       LOG(ERROR) << "Failed to open perf buffer";
@@ -1212,14 +1267,14 @@ int BPFtrace::setup_perf_events()
     ev.data.ptr = reader;
     int reader_fd = perf_reader_fd((perf_reader*)reader);
 
-    bpf_update_elem(
-        maps[MapManager::Type::PerfEvent].value()->mapfd_, &cpu, &reader_fd, 0);
+    bpf_update_elem(mapfd, &cpu, &reader_fd, 0);
     if (epoll_ctl(epollfd, EPOLL_CTL_ADD, reader_fd, &ev) == -1)
     {
       LOG(ERROR) << "Failed to add perf reader to epoll";
       return -1;
     }
   }
+
   return epollfd;
 }
 
@@ -1488,6 +1543,8 @@ int BPFtrace::print_map(IMap &map, uint32_t top, uint32_t div)
     return print_map_hist(map, top, div);
   else if (map.type_.IsAvgTy() || map.type_.IsStatsTy())
     return print_map_stats(map, top, div);
+  else if (map.type_.IsEventTy())
+    return 0; // event streams are not printable
 
   uint32_t nvalues = map.is_per_cpu_type() ? ncpus_ : 1;
   std::vector<uint8_t> old_key;

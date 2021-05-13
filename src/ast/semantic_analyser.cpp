@@ -621,6 +621,27 @@ void SemanticAnalyser::visit(Call &call)
     check_arg(call, Type::integer, 0);
     call.type = CreateStats(true);
   }
+  else if (call.func == "event") {
+    std::vector<SizedType> elements;
+    check_assignment(call, true, false, false);
+    if (check_varargs(call, 1, 128))
+    {
+      // FIXME: ensure all arguments are acceptable for event fields
+      for (size_t i = 0; i < call.vargs->size(); ++i)
+      {
+        Expression *elem = call.vargs->at(i);
+        elem->accept(*this);
+
+        // If elem type is none that means that the tuple contains some
+        // invalid cast (e.g., (0, (aaa)0)). In this case, skip the tuple
+        // creation. Cast already emits the error.
+        if (elem->type.IsNoneTy() || elem->type.GetSize() == 0)
+          LOG(ERROR, call.loc, err_) << "invalid field for event";
+        elements.emplace_back(elem->type);
+      }
+    }
+    call.type = CreateEvent(elements);
+  }
   else if (call.func == "delete") {
     check_assignment(call, false, false, false);
     if (check_nargs(call, 1)) {
@@ -3195,6 +3216,15 @@ void SemanticAnalyser::assign_map_type(const Map &map, const SizedType &type)
       // be space for any integer to be assigned to the map later
       map_val_[map_ident].SetSize(8);
     }
+  }
+
+  // when the event type is assigned to a map, that means it will be a
+  // custom perf event buffer for caller consumption. this map type does
+  // not accept any keys, it is purely an output stream of events.
+  if (type.IsEventTy() && map.vargs && map.vargs->size() > 0) {
+    LOG(ERROR, map.loc, err_)
+        << "Type mismatch for " << map_ident << ": "
+        << "events cannot be assigned to keyed maps";
   }
 }
 

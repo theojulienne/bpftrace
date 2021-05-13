@@ -58,6 +58,8 @@ Map::Map(const std::string &name,
   if (key_size == 0)
     key_size = 8;
 
+  int value_size = type.GetSize();
+
   if (type.IsCountTy() && !key.args_.size())
   {
     map_type_ = BPF_MAP_TYPE_PERCPU_ARRAY;
@@ -71,10 +73,17 @@ Map::Map(const std::string &name,
   {
     map_type_ = BPF_MAP_TYPE_PERCPU_HASH;
   }
+  else if (type.IsEventTy())
+  {
+    std::vector<int> cpus = get_online_cpus();
+    map_type_ = BPF_MAP_TYPE_PERF_EVENT_ARRAY;
+    key_size = 4;
+    value_size = 4;
+    max_entries = cpus.size();
+  }
   else
     map_type_ = BPF_MAP_TYPE_HASH;
 
-  int value_size = type.GetSize();
   int flags = 0;
   mapfd_ = create_map(
       map_type_, name, key_size, value_size, max_entries, flags);

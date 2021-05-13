@@ -29,6 +29,7 @@ std::ostream& operator<<(std::ostream& out, MessageType type) {
     case MessageType::syscall: out << "syscall"; break;
     case MessageType::attached_probes: out << "attached_probes"; break;
     case MessageType::lost_events: out << "lost_events"; break;
+    case MessageType::event: out << "event"; break;
     default: out << "?";
   }
   return out;
@@ -327,6 +328,13 @@ void TextOutput::message(MessageType type __attribute__((unused)), const std::st
   out_ << msg;
   if (nl)
     out_ << std::endl;
+}
+
+void TextOutput::message(MessageType type, const std::string& map_name, 
+                         BPFtrace &bpftrace, const SizedType &ty,
+                         const std::vector<uint8_t> &value) const
+{
+  out_ << map_name << ": " << tuple_to_str(bpftrace, ty, value) << std::endl;
 }
 
 void TextOutput::lost_events(uint64_t lost) const
@@ -683,6 +691,14 @@ void JsonOutput::message(MessageType type, const std::string& field, uint64_t va
 {
   out_ << "{\"type\": \"" << type << "\", \"data\": " <<  "{\"" << field
        << "\": " << value << "}" << "}" << std::endl;
+}
+
+void JsonOutput::message(MessageType type, const std::string& map_name, 
+                         BPFtrace &bpftrace, const SizedType &ty,
+                         const std::vector<uint8_t> &value) const
+{
+  out_ << "{\"type\": \"" << type << "\", \"data\": " <<  "{\"" << map_name
+       << "\": " << tuple_to_str(bpftrace, ty, value) << "}" << "}" << std::endl;
 }
 
 void JsonOutput::lost_events(uint64_t lost) const

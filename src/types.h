@@ -31,6 +31,7 @@ enum class Type
   max,
   avg,
   stats,
+  event,
   kstack,
   ustack,
   string,
@@ -264,6 +265,10 @@ public:
   {
     return type == Type::stats;
   };
+  bool IsEventTy(void) const
+  {
+    return type == Type::event;
+  };
   bool IsKstackTy(void) const
   {
     return type == Type::kstack;
@@ -339,6 +344,7 @@ public:
   friend SizedType CreateRecord(size_t size, const std::string &name);
   friend SizedType CreateInteger(size_t bits, bool is_signed);
   friend SizedType CreateTuple(const std::vector<SizedType> &fields);
+  friend SizedType CreateEvent(const std::vector<SizedType> &fields);
 };
 // Type helpers
 
@@ -376,6 +382,7 @@ SizedType CreateSum(bool is_signed);
 SizedType CreateCount(bool is_signed);
 SizedType CreateAvg(bool is_signed);
 SizedType CreateStats(bool is_signed);
+SizedType CreateEvent(const std::vector<SizedType> &fields);
 SizedType CreateProbe();
 SizedType CreateUsername();
 SizedType CreateInet(size_t size);

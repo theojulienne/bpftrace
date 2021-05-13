@@ -68,6 +68,7 @@ public:
 
   void createPrintMapCall(Call &call);
   void createPrintNonMapCall(Call &call, int &id);
+  void createEventOutputCall(Call &call);
 
   void generate_ir(void);
   void optimize(void);

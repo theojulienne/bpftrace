@@ -161,6 +161,7 @@ std::string typestr(Type t)
     case Type::max:      return "max";      break;
     case Type::avg:      return "avg";      break;
     case Type::stats:    return "stats";    break;
+    case Type::event:    return "event";    break;
     case Type::kstack:   return "kstack";   break;
     case Type::ustack:   return "ustack";   break;
     case Type::string:   return "string";   break;
@@ -399,6 +400,14 @@ SizedType CreateStats(bool is_signed)
   return SizedType(Type::stats, 8, is_signed);
 }
 
+SizedType CreateEvent(const std::vector<SizedType> &fields)
+{
+  auto s = SizedType(Type::event, 0);
+  s.tuple_fields = Tuple::Create(fields);
+  s.size_ = s.tuple_fields->size;
+  return s;
+}
+
 SizedType CreateProbe()
 {
   return SizedType(Type::probe, 8);
@@ -468,13 +477,13 @@ bool SizedType::IsSigned(void) const
 
 std::vector<Field> &SizedType::GetFields() const
 {
-  assert(IsTupleTy());
+  assert(IsTupleTy() || IsEventTy());
   return tuple_fields->fields;
 }
 
 Field &SizedType::GetField(ssize_t n) const
 {
-  assert(IsTupleTy());
+  assert(IsTupleTy() || IsEventTy());
   if (n >= GetFieldCount())
     throw std::runtime_error("Getfield(): out of bound");
   return tuple_fields->fields[n];
@@ -482,13 +491,13 @@ Field &SizedType::GetField(ssize_t n) const
 
 ssize_t SizedType::GetFieldCount() const
 {
-  assert(IsTupleTy());
+  assert(IsTupleTy() || IsEventTy());
   return tuple_fields->fields.size();
 }
 
 void SizedType::DumpStructure(std::ostream &os)
 {
-  assert(IsTupleTy());
+  assert(IsTupleTy() || IsEventTy());
   return tuple_fields->Dump(os);
 }
 
@@ -497,7 +506,7 @@ ssize_t SizedType::GetAlignment() const
   if (IsStringTy())
     return 1;
 
-  if (IsTupleTy())
+  if (IsTupleTy() || IsEventTy())
     return tuple_fields->align;
 
   if (GetSize() <= 2)
