@@ -135,6 +135,7 @@ private:
   bool needs_join_map_ = false;
   bool needs_elapsed_map_ = false;
   bool needs_data_map_ = false;
+  bool needs_scratch_map_ = false;
   bool has_begin_probe_ = false;
   bool has_end_probe_ = false;
   bool has_child_ = false;

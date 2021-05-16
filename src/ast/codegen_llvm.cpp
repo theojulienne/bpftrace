@@ -2842,19 +2842,35 @@ void CodegenLLVM::createEventOutputCall(Call &call)
       event_buf_min_size += 2; // minimum size: length field
   }
 
-  uint64_t available_scratch_size = 256;
-
   Function *parent = b_.GetInsertBlock()->getParent();
   BasicBlock *oob = BasicBlock::Create(module_->getContext(), "len.oob", parent);
 
+  uint64_t available_scratch_size = 0x10000;
+  Value *buf = b_.CreateGetScratchDataMap(ctx_, call.loc);
+
+  BasicBlock *notzero = BasicBlock::Create(module_->getContext(),
+                                            "scratchnotzero",
+                                            parent);
+
+  b_.CreateCondBr(b_.CreateICmpNE(buf,
+                                  ConstantExpr::getCast(Instruction::IntToPtr,
+                                                        b_.getInt64(0),
+                                                        b_.getInt8PtrTy()),
+                                  "scratchzerocond"),
+                  notzero,
+                  oob);
+
+  // arg0
+  b_.SetInsertPoint(notzero);
+
   // FIXME: support for sizes that don't fit on stack
   // FIXME: and also, on newer kernels, support ringbuf
-  auto buf_type = llvm::ArrayType::get(b_.getInt8Ty(), available_scratch_size);
-  AllocaInst *buf = b_.CreateAllocaBPF(buf_type, map.ident + "_val");
+  // auto buf_type = llvm::ArrayType::get(b_.getInt8Ty(), available_scratch_size);
+  // AllocaInst *buf = b_.CreateAllocaBPF(buf_type, map.ident + "_val");
 
   // FIXME: oddly, the verifier complains if it can't validate this was
   // pre-initialised.
-  b_.CREATE_MEMSET(buf, b_.getInt8(0), available_scratch_size, 1);
+  // b_.CREATE_MEMSET(buf, b_.getInt8(0), available_scratch_size, 1);
 
   Value *offset_val = b_.getInt64(0);
   Value *remaining = b_.getInt64(available_scratch_size);
@@ -2880,7 +2896,8 @@ void CodegenLLVM::createEventOutputCall(Call &call)
       b_.CreateCondBr(size_cmp, oob, size_safe);
       b_.SetInsertPoint(size_safe);
 
-      Value *dest_size = b_.CreateGEP(buf, {b_.getInt64(0), offset_val});
+      // Value *dest_size = b_.CreateGEP(buf, {b_.getInt64(0), offset_val});
+      Value *dest_size = b_.CreateGEP(buf, offset_val);
       b_.CreateStore(slice_len, dest_size);
 
       // adjust as if we went through the loop again
@@ -2899,7 +2916,8 @@ void CodegenLLVM::createEventOutputCall(Call &call)
       Value *slice_data_offset = b_.CreateStructGEP(slice_buf, 1);
       Value *slice_data = b_.CreateLoad(slice_data_offset);
 
-      Value *dest_data = b_.CreateGEP(buf, {b_.getInt64(0), offset_val});
+      // Value *dest_data = b_.CreateGEP(buf, {b_.getInt64(0), offset_val});
+      Value *dest_data = b_.CreateGEP(buf, offset_val);
       b_.CreateProbeRead(ctx_,
                          dest_data,
                          slice_len,
@@ -2917,7 +2935,8 @@ void CodegenLLVM::createEventOutputCall(Call &call)
 
       b_.SetInsertPoint(safe);
 
-      Value *write_loc = b_.CreateGEP(buf, {b_.getInt64(0), offset_val});
+      // Value *write_loc = b_.CreateGEP(buf, {b_.getInt64(0), offset_val});
+      Value *write_loc = b_.CreateGEP(buf, offset_val);
 
       if (onStack(expr->type))
         b_.CREATE_MEMCPY(write_loc, expr_val, expr->type.GetSize(), 1);

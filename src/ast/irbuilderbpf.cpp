@@ -344,6 +344,18 @@ CallInst *IRBuilderBPF::CreateGetJoinMap(Value *ctx, const location &loc)
   return call;
 }
 
+CallInst *IRBuilderBPF::CreateGetScratchDataMap(Value *ctx, const location &loc)
+{
+  AllocaInst *key = CreateAllocaBPF(getInt32Ty(), "key");
+  Value *cpu_id = CreateGetCpuId();
+  CreateStore(cpu_id, key);
+
+  CallInst *call = createMapLookup(
+      bpftrace_.maps[MapManager::Type::ScratchData].value()->mapfd_, key);
+  CreateHelperErrorCond(ctx, call, libbpf::BPF_FUNC_map_lookup_elem, loc, true);
+  return call;
+}
+
 Value *IRBuilderBPF::CreateMapLookupElem(Value *ctx,
                                          Map &map,
                                          Value *key,

@@ -623,6 +623,7 @@ void SemanticAnalyser::visit(Call &call)
   }
   else if (call.func == "event") {
     std::vector<SizedType> elements;
+    needs_scratch_map_ = true;
     check_assignment(call, true, false, false);
     if (check_varargs(call, 1, 128))
     {
@@ -2855,6 +2856,17 @@ int SemanticAnalyser::create_maps_impl(void)
         "join", BPF_MAP_TYPE_PERCPU_ARRAY, 4, value_size, 1, 0);
     failed_maps += is_invalid_map(map->mapfd_);
     bpftrace_.maps.Set(MapManager::Type::Join, std::move(map));
+  }
+  if (needs_scratch_map_)
+  {
+    // event output is unbounded by BPF stack size, including when using slices
+    // that could be anything up to 64KB in size. per-CPU maps unfortunately
+    // have a limitation of 32KB, so to allow for maximal size available we
+    // create large buffers that are indexed by CPU.
+    auto scratchmap = std::make_unique<T>(
+        "scratch", BPF_MAP_TYPE_ARRAY, 4, 0x10000, get_possible_cpus().size(), 0);
+    failed_maps += is_invalid_map(scratchmap->mapfd_);
+    bpftrace_.maps.Set(MapManager::Type::ScratchData, std::move(scratchmap));
   }
   if (needs_elapsed_map_)
   {

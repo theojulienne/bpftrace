@@ -291,6 +291,8 @@ std::string to_string(MapManager::Type t)
       return "elapsed";
     case MapManager::Type::SeqPrintfData:
       return "seq_printf_data";
+    case MapManager::Type::ScratchData:
+      return "scratch_data";
   }
   return {}; // unreached
 }
