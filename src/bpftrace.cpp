@@ -693,6 +693,9 @@ std::vector<std::unique_ptr<IPrintable>> BPFtrace::get_arg_values(const std::vec
             reinterpret_cast<AsyncEvent::Buf *>(arg_data + arg.offset)
                 ->length)));
         break;
+      case Type::slice:
+        // FIXME: implement
+        break;
       case Type::ksym:
         arg_values.push_back(
           std::make_unique<PrintableString>(
@@ -1441,6 +1444,12 @@ std::string BPFtrace::map_value_to_str(const SizedType &stype,
     return resolve_uid(read_data<uint64_t>(value.data()));
   else if (stype.IsBufferTy())
   {
+    auto buf = reinterpret_cast<AsyncEvent::Buf *>(value.data());
+    return resolve_buf(buf->content, buf->length);
+  }
+  else if (stype.IsSliceTy())
+  {
+    // FIXME: pretend it's a Buf for now because the types are right
     auto buf = reinterpret_cast<AsyncEvent::Buf *>(value.data());
     return resolve_buf(buf->content, buf->length);
   }

@@ -173,6 +173,7 @@ std::string typestr(Type t)
     case Type::stack_mode:return "stack mode";break;
     case Type::array:    return "array";    break;
     case Type::buffer:   return "buffer";   break;
+    case Type::slice:    return "slice";    break;
     case Type::tuple:    return "tuple";    break;
     case Type::timestamp:return "timestamp";break;
     case Type::mac_address: return "mac_address"; break;
@@ -450,6 +451,13 @@ SizedType CreateBuffer(size_t size)
   return SizedType(Type::buffer, size);
 }
 
+SizedType CreateSlice(const SizedType &base_type)
+{
+  auto s = SizedType(Type::slice, 2+8);
+  s.element_type_ = std::make_shared<SizedType>(base_type);
+  return s;
+}
+
 SizedType CreateTimestamp()
 {
   return SizedType(Type::timestamp, 16);
@@ -508,10 +516,10 @@ ssize_t SizedType::GetAlignment() const
 
   if (IsTupleTy() || IsEventTy())
     return tuple_fields->align;
-
+  
   if (GetSize() <= 2)
     return GetSize();
-  else if (IsArrayTy())
+  else if (IsArrayTy() || IsSliceTy())
     return element_type_->GetAlignment();
   else if (IsByteArray() || GetSize() <= 4)
     return 4;

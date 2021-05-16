@@ -1040,13 +1040,12 @@ void IRBuilderBPF::CreateGetCurrentComm(Value *ctx,
   CreateHelperErrorCond(ctx, call, libbpf::BPF_FUNC_get_current_comm, loc);
 }
 
-void IRBuilderBPF::CreatePerfEventOutput(Value *ctx, Value *map_ptr, Value *data, size_t size)
+void IRBuilderBPF::CreatePerfEventOutput(Value *ctx, Value *map_ptr, Value *data, Value *size)
 {
   assert(ctx && ctx->getType() == getInt8PtrTy());
   assert(data && data->getType()->isPointerTy());
 
   Value *flags_val = getInt64(BPF_F_CURRENT_CPU);
-  Value *size_val = getInt64(size);
 
   // int bpf_perf_event_output(struct pt_regs *ctx, struct bpf_map *map,
   //                           u64 flags, void *data, u64 size)
@@ -1064,21 +1063,26 @@ void IRBuilderBPF::CreatePerfEventOutput(Value *ctx, Value *map_ptr, Value *data
       getInt64(libbpf::BPF_FUNC_perf_event_output),
       perfoutput_func_ptr_type);
   createCall(perfoutput_func,
-             { ctx, map_ptr, flags_val, data, size_val },
+             { ctx, map_ptr, flags_val, data, size },
              "perf_event_output");
+}
+
+void IRBuilderBPF::CreatePerfEventOutput(Value *ctx, Map &map, Value *data, Value *size)
+{
+  Value *map_ptr = CreateBpfPseudoCallFd(map);
+  CreatePerfEventOutput(ctx, map_ptr, data, size);
 }
 
 void IRBuilderBPF::CreatePerfEventOutput(Value *ctx, Map &map, Value *data, size_t size)
 {
-  Value *map_ptr = CreateBpfPseudoCallFd(map);
-  CreatePerfEventOutput(ctx, map_ptr, data, size);
+  CreatePerfEventOutput(ctx, map, data, getInt64(size));
 }
 
 void IRBuilderBPF::CreatePerfEventOutput(Value *ctx, Value *data, size_t size)
 {
   auto map = bpftrace_.maps[MapManager::Type::PerfEvent].value();
   Value *map_ptr = CreateBpfPseudoCallFd(map->mapfd_);
-  CreatePerfEventOutput(ctx, map_ptr, data, size);
+  CreatePerfEventOutput(ctx, map_ptr, data, getInt64(size));
 }
 
 void IRBuilderBPF::CreateSignal(Value *ctx, Value *sig, const location &loc)

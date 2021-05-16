@@ -27,6 +27,7 @@ MAKE_ACCEPT(Unop)
 MAKE_ACCEPT(Ternary)
 MAKE_ACCEPT(FieldAccess)
 MAKE_ACCEPT(ArrayAccess)
+MAKE_ACCEPT(Slice)
 MAKE_ACCEPT(Cast)
 MAKE_ACCEPT(Tuple)
 MAKE_ACCEPT(ExprStatement)
@@ -87,6 +88,16 @@ ArrayAccess::~ArrayAccess()
   delete indexpr;
   expr = nullptr;
   indexpr = nullptr;
+}
+
+Slice::~Slice()
+{
+  delete expr;
+  delete startexpr;
+  delete endexpr;
+  expr = nullptr;
+  startexpr = nullptr;
+  endexpr = nullptr;
 }
 
 Cast::~Cast()
@@ -318,6 +329,11 @@ FieldAccess::FieldAccess(Expression *expr, ssize_t index, location loc)
 
 ArrayAccess::ArrayAccess(Expression *expr, Expression *indexpr, location loc)
     : Expression(loc), expr(expr), indexpr(indexpr)
+{
+}
+
+Slice::Slice(Expression *expr, Expression *startexpr, Expression *endexpr, location loc)
+    : Expression(loc), expr(expr), startexpr(startexpr), endexpr(endexpr)
 {
 }
 

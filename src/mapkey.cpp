@@ -112,6 +112,11 @@ std::string MapKey::argument_value(BPFtrace &bpftrace,
       auto p = static_cast<const char *>(data) + 1;
       return hex_format_buffer(p, arg.GetSize() - 1);
     }
+    case Type::slice:
+    {
+      // FIXME; implement
+      return "";
+    }
     case Type::pointer:
     {
       // use case: show me these pointer values

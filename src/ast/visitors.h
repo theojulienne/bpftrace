@@ -29,6 +29,7 @@ public:
   virtual void visit(Ternary &ternary) = 0;
   virtual void visit(FieldAccess &acc) = 0;
   virtual void visit(ArrayAccess &arr) = 0;
+  virtual void visit(Slice &slice) = 0;
   virtual void visit(Cast &cast) = 0;
   virtual void visit(Tuple &tuple) = 0;
   virtual void visit(ExprStatement &expr) = 0;
@@ -91,6 +92,7 @@ public:
   void visit(Ternary &ternary) override;
   void visit(FieldAccess &acc) override;
   void visit(ArrayAccess &arr) override;
+  void visit(Slice &slice) override;
   void visit(Cast &cast) override;
   void visit(Tuple &tuple) override;
   void visit(ExprStatement &expr) override;
@@ -152,6 +154,7 @@ public:
   virtual R visit(Ternary &node) DEFAULT_FN;
   virtual R visit(FieldAccess &node) DEFAULT_FN;
   virtual R visit(ArrayAccess &node) DEFAULT_FN;
+  virtual R visit(Slice &node) DEFAULT_FN;
   virtual R visit(Cast &node) DEFAULT_FN;
   virtual R visit(Tuple &node) DEFAULT_FN;
   virtual R visit(ExprStatement &node) DEFAULT_FN;
@@ -196,6 +199,7 @@ private:
     DEFINE_DISPATCH(Unop);
     DEFINE_DISPATCH(FieldAccess);
     DEFINE_DISPATCH(ArrayAccess);
+    DEFINE_DISPATCH(Slice);
     DEFINE_DISPATCH(Cast);
     DEFINE_DISPATCH(Tuple);
     DEFINE_DISPATCH(ExprStatement);
@@ -245,6 +249,7 @@ public:
   Node *visit(Ternary &) override;
   Node *visit(FieldAccess &) override;
   Node *visit(ArrayAccess &) override;
+  Node *visit(Slice &) override;
   Node *visit(Cast &) override;
   Node *visit(Tuple &) override;
   Node *visit(ExprStatement &) override;

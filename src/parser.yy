@@ -350,6 +350,7 @@ expr : int                                      { $$ = $1; }
      | expr DOT INT                             { $$ = new ast::FieldAccess($1, $3, @3); }
      | expr PTR ident                           { $$ = new ast::FieldAccess(new ast::Unop(token::MUL, $1, @2), $3, @$); }
      | expr "[" expr "]"                        { $$ = new ast::ArrayAccess($1, $3, @2 + @4); }
+     | expr "[" expr ":" expr "]"               { $$ = new ast::Slice($1, $3, $5, @2 + @6); }
      | "(" IDENT ")" expr %prec CAST            { $$ = new ast::Cast($2, false, false, $4, @1 + @3); }
      | "(" IDENT MUL ")" expr %prec CAST        { $$ = new ast::Cast($2, true, false, $5, @1 + @4); }
      | "(" IDENT MUL MUL ")" expr %prec CAST    { $$ = new ast::Cast($2, true, true, $6, @1 + @5); }

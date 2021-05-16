@@ -10,7 +10,7 @@ bool is_quoted_type(const SizedType &ty)
 {
   return ty.IsKstackTy() || ty.IsUstackTy() || ty.IsKsymTy() || ty.IsUsymTy() ||
          ty.IsInetTy() || ty.IsUsernameTy() || ty.IsStringTy() ||
-         ty.IsBufferTy() || ty.IsProbeTy();
+         ty.IsBufferTy() || ty.IsSliceTy() || ty.IsProbeTy();
 }
 } // namespace
 
@@ -717,6 +717,7 @@ std::string JsonOutput::tuple_to_str(BPFtrace &bpftrace,
 {
   bool first = true;
   std::string ret;
+  size_t read_so_far = 0;
 
   ret += '[';
 
@@ -724,6 +725,16 @@ std::string JsonOutput::tuple_to_str(BPFtrace &bpftrace,
   {
     auto &elemtype = elem.type;
     auto offset = elem.offset;
+    auto size = elemtype.GetSize();
+
+    if (ty.IsEventTy())
+    {
+      offset = read_so_far;
+      if (elemtype.IsSliceTy())
+        size = 2 + read_data<uint16_t>(value.data() + offset);
+    }
+    
+    read_so_far += size;
 
     if (first)
       first = false;
@@ -731,8 +742,7 @@ std::string JsonOutput::tuple_to_str(BPFtrace &bpftrace,
       ret += ',';
 
     std::vector<uint8_t> elem_value(value.begin() + offset,
-                                    value.begin() + offset +
-                                        elemtype.GetSize());
+                                    value.begin() + offset + size);
 
     if (elemtype.type == Type::tuple)
       ret += tuple_to_str(bpftrace, elemtype, elem_value);

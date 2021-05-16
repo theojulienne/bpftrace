@@ -42,6 +42,7 @@ public:
   void visit(Ternary &ternary) override;
   void visit(FieldAccess &acc) override;
   void visit(ArrayAccess &arr) override;
+  void visit(Slice &slice) override;
   void visit(Cast &cast) override;
   void visit(Tuple &tuple) override;
   void visit(ExprStatement &expr) override;

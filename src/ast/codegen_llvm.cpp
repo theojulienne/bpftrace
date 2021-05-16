@@ -1695,6 +1695,43 @@ void CodegenLLVM::visit(ArrayAccess &arr)
   }
 }
 
+void CodegenLLVM::visit(Slice &slice)
+{
+  SizedType &type = slice.expr->type;
+  auto elem_type = type.IsArrayTy() ? *type.GetElementTy()
+                                    : *type.GetPointeeTy();
+  size_t elem_size = elem_type.GetSize();
+
+  auto scoped_del_expr = accept(slice.expr);
+  Value *array = expr_;
+
+  auto scoped_del_startindex = accept(slice.startexpr);
+  Value *startindex = b_.CreateIntCast(expr_, b_.getInt64Ty(), type.IsSigned());
+  Value *startoffset = b_.CreateMul(startindex, b_.getInt64(elem_size));
+
+  auto scoped_del_endindex = accept(slice.endexpr);
+  Value *endindex = b_.CreateIntCast(expr_, b_.getInt64Ty(), type.IsSigned());
+  Value *endoffset = b_.CreateMul(endindex, b_.getInt64(elem_size));
+
+  Value *data = b_.CreateAdd(array, startoffset);
+  Value *length = b_.CreateSub(endoffset, startoffset);
+
+  auto elements = AsyncEvent::Slice().asLLVMType(b_);
+  StructType *slice_struct = b_.GetStructType("slice_t",
+                                            elements,
+                                            false);
+  AllocaInst *slice_buf = b_.CreateAllocaBPF(slice_struct, "slice");
+
+  Value *slice_len_offset = b_.CreateStructGEP(slice_buf, 0);
+  length = b_.CreateIntCast(length, slice_struct->getElementType(0), false);
+  b_.CreateStore(length, slice_len_offset);
+
+  Value *slice_data_offset = b_.CreateStructGEP(slice_buf, 1);
+  b_.CreateStore(data, slice_data_offset);
+
+  expr_ = slice_buf;
+}
+
 void CodegenLLVM::visit(Cast &cast)
 {
   auto scoped_del = accept(cast.expr);
@@ -2796,52 +2833,124 @@ void CodegenLLVM::createEventOutputCall(Call &call)
 {
   Map &map = *call.map;
 
-  size_t event_buf_size = 0;
+  size_t event_buf_min_size = 0;
   for (Expression *expr : *call.vargs)
   {
-    event_buf_size += expr->type.GetSize();
+    if (!expr->type.IsSliceTy())
+      event_buf_min_size += expr->type.GetSize();
+    else
+      event_buf_min_size += 2; // minimum size: length field
   }
 
+  uint64_t available_scratch_size = 256;
+
+  Function *parent = b_.GetInsertBlock()->getParent();
+  BasicBlock *oob = BasicBlock::Create(module_->getContext(), "len.oob", parent);
+
   // FIXME: support for sizes that don't fit on stack
-  // FIXME: also support dynamic sizes (buffers/slices)
   // FIXME: and also, on newer kernels, support ringbuf
-  auto buf_type = llvm::ArrayType::get(b_.getInt8Ty(), event_buf_size);
+  auto buf_type = llvm::ArrayType::get(b_.getInt8Ty(), available_scratch_size);
   AllocaInst *buf = b_.CreateAllocaBPF(buf_type, map.ident + "_val");
 
-  // FIXME: fill in stuff in the buffer
-  int offset = 0;
-  // Construct a map key in the stack
-  for (Expression *expr : *call.vargs) // FIXME: this is identical to getMapKey, can we refactor to share it?
+  // FIXME: oddly, the verifier complains if it can't validate this was
+  // pre-initialised.
+  b_.CREATE_MEMSET(buf, b_.getInt8(0), available_scratch_size, 1);
+
+  Value *offset_val = b_.getInt64(0);
+  Value *remaining = b_.getInt64(available_scratch_size);
+  for (Expression *expr : *call.vargs)
   {
     auto scoped_del = accept(expr);
-    Value *offset_val = b_.CreateGEP(
-        buf, { b_.getInt64(0), b_.getInt64(offset) });
+    Value *expr_val = expr_;
 
-    if (onStack(expr->type))
-      b_.CREATE_MEMCPY(offset_val, expr_, expr->type.GetSize(), 1);
-    else if (expr->type.IsArrayTy() || expr->type.IsRecordTy())
+    Value *written_amount;
+    
+    if (expr->type.IsSliceTy())
     {
-      // Read the array/struct into the key
+      Value *slice_buf = expr_val;
+
+      Value *slice_len_offset = b_.CreateStructGEP(slice_buf, 0);
+      Value *slice_len = b_.CreateLoad(slice_len_offset);
+
+      // the length
+      written_amount = b_.getInt64(2);
+      
+      BasicBlock *size_safe = BasicBlock::Create(module_->getContext(), "len.size.safe", parent);
+      auto size_cmp = b_.CreateICmpSGT(written_amount, remaining);
+      b_.CreateCondBr(size_cmp, oob, size_safe);
+      b_.SetInsertPoint(size_safe);
+
+      Value *dest_size = b_.CreateGEP(buf, {b_.getInt64(0), offset_val});
+      b_.CreateStore(slice_len, dest_size);
+
+      // adjust as if we went through the loop again
+      offset_val = b_.CreateAdd(offset_val, written_amount);
+      remaining = b_.CreateSub(remaining, written_amount);
+
+      // the buf itself
+      Value *casted_len = b_.CreateIntCast(slice_len, b_.getInt64Ty(), false);
+      written_amount = casted_len;
+
+      BasicBlock *safe = BasicBlock::Create(module_->getContext(), "len.data.safe", parent);
+      auto cmp = b_.CreateICmpSGT(written_amount, remaining);
+      b_.CreateCondBr(cmp, oob, safe);
+      b_.SetInsertPoint(safe);
+
+      Value *slice_data_offset = b_.CreateStructGEP(slice_buf, 1);
+      Value *slice_data = b_.CreateLoad(slice_data_offset);
+
+      Value *dest_data = b_.CreateGEP(buf, {b_.getInt64(0), offset_val});
       b_.CreateProbeRead(ctx_,
-                          offset_val,
-                          expr->type.GetSize(),
-                          expr_,
-                          expr->type.GetAS(),
-                          expr->loc);
+                         dest_data,
+                         slice_len,
+                         slice_data,
+                         expr->type.GetAS(),
+                         expr->loc);
     }
     else
     {
-      // promote map key to 64-bit:
-      b_.CreateStore(
-          b_.CreateIntCast(expr_, b_.getInt64Ty(), expr->type.IsSigned()),
-          b_.CreatePointerCast(offset_val,
-                                expr_->getType()->getPointerTo()));
+      written_amount = b_.getInt64(expr->type.GetSize());
+
+      BasicBlock *safe = BasicBlock::Create(module_->getContext(), "len.safe", parent);
+      auto cmp = b_.CreateICmpSGT(written_amount, remaining);
+      b_.CreateCondBr(cmp, oob, safe);
+
+      b_.SetInsertPoint(safe);
+
+      Value *write_loc = b_.CreateGEP(buf, {b_.getInt64(0), offset_val});
+
+      if (onStack(expr->type))
+        b_.CREATE_MEMCPY(write_loc, expr_val, expr->type.GetSize(), 1);
+      else if (expr->type.IsArrayTy() || expr->type.IsRecordTy())
+      {
+        // Read the array/struct into the event output
+        b_.CreateProbeRead(ctx_,
+                           write_loc,
+                           expr->type.GetSize(),
+                           expr_val,
+                           expr->type.GetAS(),
+                           expr->loc);
+      }
+      else
+      {
+        // promote map event output to 64-bit:
+        b_.CreateStore(
+            b_.CreateIntCast(expr_val, b_.getInt64Ty(), expr->type.IsSigned()),
+            b_.CreatePointerCast(write_loc,
+                                 expr_val->getType()->getPointerTo()));
+      }
     }
-    offset += expr->type.GetSize();
+
+    offset_val = b_.CreateAdd(offset_val, written_amount);
+    remaining = b_.CreateSub(remaining, written_amount);
   }
 
-  b_.CreatePerfEventOutput(ctx_, map, buf, event_buf_size);
+  b_.CreatePerfEventOutput(ctx_, map, buf, offset_val);
   b_.CreateLifetimeEnd(buf);
+
+  b_.CreateBr(oob);
+  b_.SetInsertPoint(oob);
+
   expr_ = nullptr;
 }
 

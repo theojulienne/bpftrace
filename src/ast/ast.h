@@ -275,6 +275,23 @@ private:
   ArrayAccess(const ArrayAccess &other) : Expression(other){};
 };
 
+class Slice : public Expression {
+public:
+  DEFINE_ACCEPT
+  DEFINE_LEAFCOPY(Slice)
+
+  Slice(Expression *expr, Expression *startexpr, Expression *endexpr);
+  Slice(Expression *expr, Expression *startexpr, Expression *endexpr, location loc);
+  ~Slice();
+
+  Expression *expr = nullptr;
+  Expression *startexpr = nullptr;
+  Expression *endexpr = nullptr;
+
+private:
+  Slice(const Slice &other) : Expression(other){};
+};
+
 class Cast : public Expression {
 public:
   DEFINE_LEAFCOPY(Cast)

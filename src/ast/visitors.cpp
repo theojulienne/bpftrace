@@ -83,6 +83,13 @@ void Visitor::visit(ArrayAccess &arr)
   Visit(*arr.indexpr);
 }
 
+void Visitor::visit(Slice &slice)
+{
+  Visit(*slice.expr);
+  Visit(*slice.startexpr);
+  Visit(*slice.endexpr);
+}
+
 void Visitor::visit(Cast &cast)
 {
   Visit(*cast.expr);
@@ -282,6 +289,15 @@ Node *Mutator::visit(ArrayAccess &arr)
   a->expr = Value<Expression>(arr.expr);
   a->indexpr = Value<Expression>(arr.indexpr);
   return a;
+}
+
+Node *Mutator::visit(Slice &slice)
+{
+  auto s = slice.leafcopy();
+  s->expr = Value<Expression>(slice.expr);
+  s->startexpr = Value<Expression>(slice.startexpr);
+  s->endexpr = Value<Expression>(slice.endexpr);
+  return s;
 }
 
 Node *Mutator::visit(Cast &cast)

@@ -1550,6 +1550,27 @@ TEST(Parser, array_access)
       "    identifier: index\n");
 }
 
+TEST(Parser, slice)
+{
+  test("kprobe:sys_read { x[index:until]; }",
+      "Program\n"
+      " kprobe:sys_read\n"
+      "  []\n"
+      "   identifier: x\n"
+      "   identifier: index\n"
+      "   identifier: until\n");
+
+  test("kprobe:sys_read { $val = x[index:until]; }",
+      "Program\n"
+      " kprobe:sys_read\n"
+      "  =\n"
+      "   variable: $val\n"
+      "   []\n"
+      "    identifier: x\n"
+      "    identifier: index\n"
+      "    identifier: until\n");
+}
+
 TEST(Parser, cstruct)
 {
   test("struct Foo { int x, y; char *str; } kprobe:sys_read { 1; }",

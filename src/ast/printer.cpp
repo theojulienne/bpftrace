@@ -209,6 +209,18 @@ void Printer::visit(ArrayAccess &arr)
   --depth_;
 }
 
+void Printer::visit(Slice &slice)
+{
+  std::string indent(depth_, ' ');
+  out_ << indent << "[]" << std::endl;
+
+  ++depth_;
+  slice.expr->accept(*this);
+  slice.startexpr->accept(*this);
+  slice.endexpr->accept(*this);
+  --depth_;
+}
+
 void Printer::visit(Cast &cast)
 {
   std::string indent(depth_, ' ');

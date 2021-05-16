@@ -635,7 +635,7 @@ void SemanticAnalyser::visit(Call &call)
         // If elem type is none that means that the tuple contains some
         // invalid cast (e.g., (0, (aaa)0)). In this case, skip the tuple
         // creation. Cast already emits the error.
-        if (elem->type.IsNoneTy() || elem->type.GetSize() == 0)
+        if (elem->type.IsNoneTy())
           LOG(ERROR, call.loc, err_) << "invalid field for event";
         elements.emplace_back(elem->type);
       }
@@ -1490,6 +1490,79 @@ void SemanticAnalyser::visit(ArrayAccess &arr)
     arr.type = CreateNone();
   arr.type.is_internal = type.is_internal;
   arr.type.SetAS(type.GetAS());
+}
+
+void SemanticAnalyser::visit(Slice &slice)
+{
+  slice.expr->accept(*this);
+  slice.startexpr->accept(*this);
+  slice.endexpr->accept(*this);
+
+  SizedType &type = slice.expr->type;
+  SizedType &starttype = slice.startexpr->type;
+  SizedType &endtype = slice.endexpr->type;
+
+  if (is_final_pass()) {
+    if (!type.IsArrayTy() && !type.IsPtrTy())
+    {
+      LOG(ERROR, slice.loc, err_) << "The array slice operator [:] can only be "
+                                   "used on arrays and pointers, found "
+                                << type.type << ".";
+      return;
+    }
+
+    if (type.IsPtrTy() && type.GetPointeeTy()->GetSize() == 0)
+    {
+      LOG(ERROR, slice.loc, err_) << "The array slice operator [:] cannot be used "
+                                   "on a pointer to an unsized type (void *).";
+    }
+
+    // do bounds checking where applicable, but allow runtime indexes and
+    // literal indexes that could be out of bounds when using pointer base type.
+    if (type.IsArrayTy())
+    {
+      Integer *start_index = nullptr;
+      Integer *end_index = nullptr;
+
+      if (starttype.IsIntTy() && slice.startexpr->is_literal)
+      {
+        start_index = static_cast<Integer *>(slice.startexpr);
+
+        // start must include at least the last element
+        if ((size_t)start_index->n >= type.GetNumElements())
+          LOG(ERROR, slice.loc, err_) << "the index " << start_index->n
+                                    << " is out of bounds for array of size "
+                                    << type.GetNumElements();
+      }
+
+      if (endtype.IsIntTy() && slice.endexpr->is_literal)
+      {
+        end_index = static_cast<Integer *>(slice.endexpr);
+
+        // end can be the size, indicating "up to the end of the array"
+        if ((size_t)end_index->n > type.GetNumElements())
+          LOG(ERROR, slice.loc, err_) << "the index " << end_index->n
+                                    << " is out of bounds for array of size "
+                                    << type.GetNumElements();
+      }
+
+      if (start_index != nullptr && end_index != nullptr) {
+        if ((size_t)start_index->n > (size_t)end_index->n)
+          LOG(ERROR, slice.loc, err_) << "the start index " << start_index->n
+                                      << " must be less than the end index "
+                                      << end_index->n;
+      }
+    }
+  }
+
+  SizedType element_type = CreateNone();
+  if (type.IsArrayTy())
+    element_type = *type.GetElementTy();
+  else if (type.IsPtrTy())
+    element_type = *type.GetPointeeTy();
+  slice.type = CreateSlice(element_type);
+  slice.type.is_internal = element_type.is_internal;
+  slice.type.SetAS(element_type.GetAS());
 }
 
 void SemanticAnalyser::visit(Binop &binop)

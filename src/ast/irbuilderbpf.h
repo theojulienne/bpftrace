@@ -156,7 +156,8 @@ public:
   void        CreatePerfEventOutput(Value *ctx, Value *data, size_t size);
   void        CreatePerfEventOutput(Value *ctx, IMap *map, Value *data, size_t size);
   void        CreatePerfEventOutput(Value *ctx, Map &map, Value *data, size_t size);
-  void        CreatePerfEventOutput(Value *ctx, Value *map_ptr, Value *data, size_t size);
+  void        CreatePerfEventOutput(Value *ctx, Map &map, Value *data, Value *size);
+  void        CreatePerfEventOutput(Value *ctx, Value *map_ptr, Value *data, Value *size);
   void        CreateSignal(Value *ctx, Value *sig, const location &loc);
   void        CreateOverrideReturn(Value *ctx, Value *rc);
   void        CreateHelperError(Value *ctx, Value *return_value, libbpf::bpf_func_id func_id, const location& loc);

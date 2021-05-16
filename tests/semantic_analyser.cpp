@@ -1965,6 +1965,8 @@ TEST(semantic_analyser, type_ctx)
   var = static_cast<ast::Variable *>(unop->expr);
   EXPECT_TRUE(var->type.IsPtrTy());
 
+  // FIXME: slice test
+
 #if ARCH_X86_64
   auto chartype = CreateInt8();
 #else

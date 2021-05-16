@@ -43,6 +43,7 @@ enum class Type
   stack_mode,
   array,
   buffer,
+  slice,
   tuple,
   timestamp,
   mac_address
@@ -317,6 +318,10 @@ public:
   {
     return type == Type::buffer;
   };
+ bool IsSliceTy(void) const
+  {
+    return type == Type::slice;
+  };
   bool IsTupleTy(void) const
   {
     return type == Type::tuple;
@@ -345,6 +350,7 @@ public:
   friend SizedType CreateInteger(size_t bits, bool is_signed);
   friend SizedType CreateTuple(const std::vector<SizedType> &fields);
   friend SizedType CreateEvent(const std::vector<SizedType> &fields);
+  friend SizedType CreateSlice(const SizedType & base_type);
 };
 // Type helpers
 
@@ -391,6 +397,7 @@ SizedType CreateHist();
 SizedType CreateUSym();
 SizedType CreateKSym();
 SizedType CreateBuffer(size_t size);
+SizedType CreateSlice(const SizedType &base_type);
 SizedType CreateTimestamp();
 SizedType CreateMacAddress();
 

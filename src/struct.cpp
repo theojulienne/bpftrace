@@ -23,6 +23,7 @@ std::unique_ptr<Tuple> Tuple::Create(std::vector<SizedType> fields)
   for (auto &field : fields)
   {
     auto align = field.GetAlignment();
+    align = std::max(align, (ssize_t)1); // 0 alignment is not valid
     struct_align = std::max(align, struct_align);
     auto size = field.GetSize();
 

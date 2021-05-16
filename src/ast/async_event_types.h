@@ -108,6 +108,20 @@ struct Buf
   }
 } __attribute__((packed));
 
+struct Slice
+{
+  uint16_t length;
+  void *data;
+
+  std::vector<llvm::Type*> asLLVMType(ast::IRBuilderBPF& b)
+  {
+    return {
+      b.getInt16Ty(),   // buffer length
+      b.getInt8PtrTy(), // buffer content
+    };
+  }
+} __attribute__((packed));
+
 struct HelperError
 {
   uint64_t action_id;
